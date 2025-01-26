@@ -1,4 +1,5 @@
 import { unpack, pack } from 'msgpackr';
+import crypto from "crypto";
 import { Hono } from 'hono'
 import { upgradeWebSocket } from 'hono/cloudflare-workers'
 
@@ -32,20 +33,20 @@ app.get(
     return {
       onMessage(event, ws) {
         const parsedObj = JSON.parse(event.data);
-        console.log(parsedObj)
         if (parsedObj.action === 'connect') {
-          console.log('sendConnectMessage')
+          const userId = parsedObj.data.userId || crypto.randomUUID();
           const connectUserMessageObj = {
             action: "connected",
             data: {
-              userId: "hogehoge",
+              userId: userId,
             }
           }
           ws.send(JSON.stringify(connectUserMessageObj))
         }
       },
-      onClose: () => {
-        console.log('Connection closed')
+      onClose: (event, ws) => {
+        console.log('Connection closed');
+        ws.close();
       },
     }
   })
