@@ -5,7 +5,9 @@
     "deploy": "wrangler deploy --minify"
   },
   "dependencies": {
+    "@types/lodash": "^4.17.14",
     "hono": "^4.6.18",
+    "lodash": "^4.17.21",
     "msgpackr": "^1.11.2"
   },
   "devDependencies": {
