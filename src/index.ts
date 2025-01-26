@@ -5,9 +5,21 @@ import { Hono } from 'hono';
 import { WSContext } from 'hono/ws';
 import { upgradeWebSocket } from 'hono/cloudflare-workers';
 
+enum RoomState {
+  waiting,
+  startGame,
+  finishGame,
+}
+
+interface RoomInfo {
+  roomId: string;
+  joinUserIds: string[];
+  state: RoomState;
+}
+
 const connections: WSContext<WebSocket>[] = [];
 const userIds: string[] = [];
-const roomIdUserIds: { [s: string]: string[] } = {};
+const roomIdRoomInfo: { [s: string]: RoomInfo } = {};
 
 const app = new Hono();
 
@@ -53,7 +65,11 @@ app.get(
         } else if (parsedObj.action === 'joinRoom') {
           const userId: string = parsedObj.data.userId;
           const roomId: string = parsedObj.data.roomId;
-          const roomUsers = roomIdUserIds[roomId] || [];
+          const roomInfo = roomIdRoomInfo[roomId];
+          if (!roomInfo) {
+            return;
+          }
+          const roomUsers = roomInfo.joinUserIds || [];
           roomUsers.push(userId);
           if (roomUsers.length >= 4) {
             const connectedWs = [];
@@ -83,17 +99,23 @@ app.get(
               _.remove(roomUsers, (roomUserId) => {
                 return willRemoveUserIds.includes(roomUserId);
               });
+              roomInfo.joinUserIds = roomUsers;
             } else {
               for (let i = 0; i < connectedWs.length; ++i) {
                 connectedWs[i].send(JSON.stringify(startGameMessageObjs[i]));
               }
+              roomInfo.state = RoomState.startGame;
             }
-            roomIdUserIds[roomId] = roomUsers;
+            roomIdRoomInfo[roomId] = roomInfo;
           }
         } else if (parsedObj.action === 'createRoom') {
           const userId: string = parsedObj.data.userId;
           const roomId: string = crypto.randomUUID();
-          roomIdUserIds[roomId] = [userId];
+          roomIdRoomInfo[roomId] = {
+            roomId: roomId,
+            joinUserIds: [userId],
+            state: RoomState.waiting,
+          };
           const createdRoomMessageObj = {
             action: 'createdRoom',
             data: {
